@@ -3,321 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <title>VIE Wallet</title>
-
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#000;
-  color:white;
-}
-
-/* HEADER */
-.header{
-  text-align:center;
-  padding:20px;
-}
-.balance{
-  font-size:40px;
-}
-
-/* ACTION */
-.actions{
-  display:flex;
-  justify-content:space-around;
-  margin:15px;
-}
-.action{
-  background:#111;
-  padding:12px;
-  border-radius:12px;
-  width:70px;
-  text-align:center;
-  cursor:pointer;
-}
-
-/* TABS */
-.tabs{
-  display:flex;
-  justify-content:space-around;
-  border-top:1px solid #111;
-  border-bottom:1px solid #111;
-}
-.tab{
-  padding:10px;
-  cursor:pointer;
-}
-.active{
-  color:#22c55e;
-}
-
-/* CARD */
-.card{
-  background:#111;
-  margin:10px;
-  padding:10px;
-  border-radius:12px;
-}
-.row{
-  display:flex;
-  justify-content:space-between;
-}
-
-.green{color:#22c55e;}
-.red{color:#ef4444;}
-
-.btn{
-  padding:8px;
-  border:none;
-  border-radius:8px;
-  margin-top:5px;
-  cursor:pointer;
-}
-.buy{background:#22c55e;}
-.sell{background:#ef4444;}
-
-/* NAV */
-.nav{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  display:flex;
-  justify-content:space-around;
-  background:#000;
-  padding:10px;
-  border-top:1px solid #111;
-}
-
-iframe{
-  border:none;
-  border-radius:10px;
-}
+body{margin:0;font-family:Arial;background:#050816;color:white}
+.header{padding:20px;text-align:center}
+.balance{font-size:36px}
+.container{max-width:420px;margin:auto}
+.btn{padding:10px;border:none;border-radius:10px;background:#111;color:white;margin:5px;cursor:pointer}
+.tabs{display:flex;justify-content:space-around;margin-top:10px}
+.tab{padding:10px;cursor:pointer}
+.active{color:#22c55e}
+.card{background:#0b1220;margin:10px;padding:12px;border-radius:12px}
+.flag{margin-left:6px}
+input,select{width:100%;padding:10px;margin-top:5px;border-radius:8px;border:none;background:#111;color:white}
 </style>
 </head>
-
 <body>
+
+<div class="container">
 
 <div class="header">
   <div class="balance" id="balance">$0.00</div>
-</div>
-
-<div class="actions">
-  <div class="action" onclick="connectWallet()">ETH</div>
-  <div class="action" onclick="connectAptos()">APT</div>
-  <div class="action" onclick="buy()">Buy</div>
-  <div class="action" onclick="sell()">Sell</div>
+  <button class="btn" onclick="connectWallet()">Connect Wallet</button>
+  <button class="btn" onclick="createWallet()">Create Wallet</button>
 </div>
 
 <div class="tabs">
   <div class="tab active" onclick="showTab('wallet')">Wallet</div>
   <div class="tab" onclick="showTab('market')">Market</div>
-  <div class="tab" onclick="showTab('trade')">Trade</div>
+  <div class="tab" onclick="showTab('exchange')">Exchange</div>
   <div class="tab" onclick="showTab('nft')">NFT</div>
 </div>
 
-<!-- WALLET -->
 <div id="wallet">
-  <div id="tokens"></div>
+  <div id="assets"></div>
 </div>
 
-<!-- MARKET -->
 <div id="market" style="display:none">
-  <div id="coins"></div>
+  <canvas id="chart"></canvas>
 </div>
 
-<!-- TRADE -->
-<div id="trade" style="display:none">
-  <iframe src="https://s.tradingview.com/widgetembed/?symbol=BINANCE:BTCUSDT&interval=15"
-  width="100%" height="300"></iframe>
-
-  <div style="display:flex;gap:10px;padding:10px;">
-    <button class="btn buy">BUY</button>
-    <button class="btn sell">SELL</button>
-  </div>
-</div>
-
-<!-- NFT -->
-<div id="nft" style="display:none">
-
+<div id="exchange" style="display:none">
   <div class="card">
-    <h4>Create NFT</h4>
-    <input type="file" id="file">
-    <button onclick="createNFT()">Upload</button>
+    <input id="amount" placeholder="USDT amount">
+    <select id="currency">
+      <option value="USD">USD 🇺🇸</option>
+      <option value="VND">VND 🇻🇳</option>
+      <option value="JPY">JPY 🇯🇵</option>
+      <option value="EUR">EUR 🇪🇺</option>
+    </select>
+    <button class="btn" onclick="buyUSDT()">Buy</button>
+    <button class="btn" onclick="sellUSDT()">Sell</button>
+    <p id="result"></p>
   </div>
-
-  <div id="nftList"></div>
-
 </div>
 
-<!-- NAV -->
-<div class="nav">
-  <div onclick="showTab('wallet')">Wallet</div>
-  <div onclick="showTab('market')">Market</div>
-  <div onclick="showTab('trade')">Trade</div>
-  <div onclick="showTab('nft')">NFT</div>
+<div id="nft" style="display:none">
+  <div class="card">
+    <input type="file" id="file">
+    <button class="btn" onclick="uploadNFT()">Upload NFT</button>
+  </div>
+  <div id="nfts"></div>
+</div>
+
 </div>
 
 <script>
 
-// ===== CONNECT ETH =====
+// WALLET
+let provider, signer;
+
 async function connectWallet(){
   if(window.ethereum){
-    let provider = new ethers.providers.Web3Provider(window.ethereum);
+    provider = new ethers.providers.Web3Provider(window.ethereum);
     await provider.send("eth_requestAccounts",[]);
-    let signer = provider.getSigner();
-    let address = await signer.getAddress();
-    alert("ETH: " + address);
+    signer = provider.getSigner();
+    alert("Connected");
   }
 }
 
-// ===== CONNECT APTOS =====
-async function connectAptos(){
-  if(window.aptos){
-    let res = await window.aptos.connect();
-    alert("APT: " + res.address);
-  }else{
-    alert("Install Petra Wallet");
-  }
+function createWallet(){
+  let wallet = ethers.Wallet.createRandom();
+  alert("Private Key: " + wallet.privateKey);
 }
 
-// ===== PRICE (CHAINLINK STYLE) =====
-let tokens = [
-  {name:"ETH", price:0},
-  {name:"USDT", price:1}
-];
+// ASSETS
+let assets=[{name:"ETH",balance:0},{name:"USDT",balance:0}];
 
-async function loadPrices(){
-  let res = await fetch("https://min-api.cryptocompare.com/data/pricemulti?fsyms=ETH,USDT&tsyms=USD");
-  let data = await res.json();
-
-  tokens[0].price = data.ETH.USD;
-  tokens[1].price = data.USDT.USD;
-
-  renderTokens();
-}
-
-function renderTokens(){
+function renderAssets(){
   let html="";
-  tokens.forEach(t=>{
-    html+=`
-      <div class="card">
-        <div class="row">
-          <div>${t.name}</div>
-          <div>$${t.price}</div>
-        </div>
-      </div>
-    `;
+  assets.forEach(a=>{
+    html+=`<div class='card'>${a.name}: ${a.balance}</div>`;
   });
-  document.getElementById("tokens").innerHTML = html;
+  document.getElementById("assets").innerHTML=html;
 }
+renderAssets();
 
-loadPrices();
-setInterval(loadPrices,10000);
-
-// ===== MARKET =====
-async function loadMarket(){
-  let res = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd");
+// MARKET CHART
+async function loadChart(){
+  let res = await fetch("https://api.coingecko.com/api/v3/coins/ethereum/market_chart?vs_currency=usd&days=1");
   let data = await res.json();
+  let prices = data.prices.map(p=>p[1]);
 
-  let html="";
-  data.slice(0,5).forEach(c=>{
-    html+=`
-    <div class="card">
-      <div class="row">
-        <div>${c.name}</div>
-        <div>$${c.current_price}</div>
-      </div>
-      <div class="${c.price_change_percentage_24h>0?'green':'red'}">
-        ${c.price_change_percentage_24h.toFixed(2)}%
-      </div>
-    </div>`;
+  new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{labels:prices, datasets:[{data:prices}]}
   });
-
-  document.getElementById("coins").innerHTML = html;
 }
-loadMarket();
+loadChart();
 
-// ===== BUY SELL USDT GLOBAL =====
-let fxRates = {};
-
-async function loadFX(){
-  let res = await fetch("https://open.er-api.com/v6/latest/USD");
-  let data = await res.json();
-  fxRates = data.rates;
+// FX
+let rates={};
+async function loadRates(){
+  let res=await fetch("https://open.er-api.com/v6/latest/USD");
+  let data=await res.json();
+  rates=data.rates;
 }
-loadFX();
+loadRates();
 
-function buy(){
-  let amount = prompt("USDT amount");
-  let country = prompt("USD / VND / JPY");
-
-  let cost = amount * fxRates[country.toUpperCase()];
-  alert("Buy " + amount + " USDT ≈ " + cost + " " + country);
+function buyUSDT(){
+  let amount=document.getElementById("amount").value;
+  let cur=document.getElementById("currency").value;
+  let cost=amount*rates[cur];
+  document.getElementById("result").innerText=`Buy ${amount} USDT ≈ ${cost} ${cur}`;
 }
 
-function sell(){
-  let amount = prompt("USDT amount");
-  let country = prompt("USD / VND / JPY");
-
-  let receive = amount * fxRates[country.toUpperCase()];
-  alert("Sell " + amount + " USDT ≈ " + receive + " " + country);
+function sellUSDT(){
+  let amount=document.getElementById("amount").value;
+  let cur=document.getElementById("currency").value;
+  let receive=amount*rates[cur];
+  document.getElementById("result").innerText=`Sell ${amount} USDT ≈ ${receive} ${cur}`;
 }
 
-// ===== SHELBY STORAGE NFT =====
-let nfts=[];
+// NFT
+let nftList=[];
 
-async function uploadToShelby(file){
-  let form = new FormData();
-  form.append("file",file);
-
-  let res = await fetch("https://api.web3.storage/upload",{
-    method:"POST",
-    headers:{
-      Authorization:"Bearer YOUR_API_KEY"
-    },
-    body:form
-  });
-
-  let data = await res.json();
-  return data.cid;
-}
-
-async function createNFT(){
-  let file = document.getElementById("file").files[0];
-  if(!file) return;
-
-  let cid = await uploadToShelby(file);
-
-  let nft = {
-    id:Date.now(),
-    image:`https://ipfs.io/ipfs/${cid}`
-  };
-
-  nfts.push(nft);
+function uploadNFT(){
+  let file=document.getElementById("file").files[0];
+  let url=URL.createObjectURL(file);
+  nftList.push(url);
   renderNFT();
 }
 
 function renderNFT(){
   let html="";
-  nfts.forEach(n=>{
-    html+=`
-      <div class="card">
-        <img src="${n.image}" width="100%">
-      </div>
-    `;
+  nftList.forEach(n=>{
+    html+=`<div class='card'><img src='${n}' width='100%'></div>`;
   });
-  document.getElementById("nftList").innerHTML=html;
+  document.getElementById("nfts").innerHTML=html;
 }
 
-// ===== TAB =====
+// TAB
 function showTab(tab){
-  document.getElementById("wallet").style.display="none";
-  document.getElementById("market").style.display="none";
-  document.getElementById("trade").style.display="none";
-  document.getElementById("nft").style.display="none";
-
+  ["wallet","market","exchange","nft"].forEach(t=>{
+    document.getElementById(t).style.display="none";
+  });
   document.getElementById(tab).style.display="block";
 }
 
