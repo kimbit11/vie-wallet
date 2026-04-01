@@ -20,13 +20,17 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 .tab{padding:8px;background:#111;border-radius:6px;margin:2px;cursor:pointer;text-align:center}
 
 .market-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.market-card{background:#0b1220;padding:12px;border-radius:12px;cursor:pointer}
+.market-card{background:#0b1220;padding:12px;border-radius:12px;transition:.2s}
+.market-card:hover{transform:scale(1.03);background:#111827}
 
 .buy{background:#064e3b;color:#22c55e}
 .sell{background:#7f1d1d;color:#ef4444}
 
-#tv_chart{width:100%;height:300px}
+#tv_chart{width:100%;height:320px}
 .fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999}
+
+#asks div{color:#ef4444;font-size:12px}
+#bids div{color:#22c55e;font-size:12px}
 </style>
 </head>
 
@@ -52,6 +56,7 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 
 <!-- MARKET -->
 <div id="market" style="display:none">
+<input placeholder="Search coin..." onkeyup="searchToken()">
 <div id="marketList" class="market-grid"></div>
 </div>
 
@@ -63,8 +68,7 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 <h1 id="price"></h1>
 <span id="change"></span>
 
-<button onclick="toggleFull()">⛶ Fullscreen</button>
-
+<button onclick="toggleFull()">⛶</button>
 <div id="tv_chart"></div>
 </div>
 
@@ -75,7 +79,7 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 </div>
 
 <div class="card">
-<h4>OrderBook</h4>
+<h4>Order Book</h4>
 <div id="asks"></div>
 <div id="bids"></div>
 </div>
@@ -111,6 +115,7 @@ document.getElementById(id).style.display="block";
 
 // ===== EVM WALLET =====
 async function connectWallet(){
+try{
 const provider=new ethers.providers.Web3Provider(window.ethereum);
 await provider.send("eth_requestAccounts",[]);
 const signer=provider.getSigner();
@@ -119,6 +124,9 @@ const balance=await provider.getBalance(addr);
 
 document.getElementById("address").innerText=
 "EVM: "+addr+"\nBalance: "+(balance/1e18).toFixed(4)+" ETH";
+}catch(e){
+alert("Wallet error");
+}
 }
 
 // ===== APTOS =====
@@ -128,31 +136,73 @@ async function connectAptos(){
 let acc=new window.AptosAccount();
 
 let res=await aptosClient.getAccountResources(acc.address());
-
 let coin=res.find(r=>r.type.includes("CoinStore"));
-
 let bal=coin?coin.data.coin.value/1e8:0;
 
 document.getElementById("address").innerText=
 "Aptos: "+acc.address().hex()+"\nBalance: "+bal+" APT";
 }
 
-// ===== MARKET =====
+// ===== MARKET (FULL UI GIỐNG BẢN GỐC) =====
 async function loadCoins(){
-let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=6");
+let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=10");
 let data=await res.json();
 
 let html="";
+
 data.forEach(c=>{
+let change=c.price_change_percentage_24h.toFixed(2);
+let color=change>=0?"#22c55e":"#ef4444";
+
 html+=`
-<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
-<b>${c.symbol.toUpperCase()}</b><br>
+<div class="market-card">
+
+<div onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
+<img src="${c.image}" width="28">
+<b>${c.symbol.toUpperCase()}</b>
+</div>
+
+<div>
 $${c.current_price}
+<span style="color:${color}">
+${change>0?"+":""}${change}%
+</span>
+</div>
+
+<div>
+<button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT')">Buy</button>
+<button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT')">Sell</button>
+</div>
+
 </div>`;
 });
+
 document.getElementById("marketList").innerHTML=html;
 }
 loadCoins();
+
+// SEARCH
+async function searchToken(){
+let q=document.querySelector("#market input").value;
+
+if(q.length<2){
+loadCoins();
+return;
+}
+
+let res=await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
+let data=await res.json();
+
+let html="";
+data.coins.slice(0,10).forEach(c=>{
+html+=`
+<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
+${c.name}
+</div>`;
+});
+
+document.getElementById("marketList").innerHTML=html;
+}
 
 // ===== TRADE =====
 let wsPrice, wsDepth, currentSymbol="";
@@ -160,8 +210,10 @@ let wsPrice, wsDepth, currentSymbol="";
 function openTrade(symbol){
 currentSymbol=symbol;
 showOnly("trade");
+
 document.getElementById("pair").innerText=symbol;
 
+document.getElementById("tv_chart").innerHTML="";
 new TradingView.widget({
 container_id:"tv_chart",
 symbol:"BINANCE:"+symbol,
@@ -172,9 +224,17 @@ theme:"dark"
 startStreams(symbol);
 }
 
+function quickTrade(symbol){
+openTrade(symbol);
+setTimeout(()=>{
+document.getElementById("orderAmount").value=1;
+},200);
+}
+
 // ===== CHAINLINK =====
 const feeds={
-ETH:"0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419"
+ETH:"0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
+BTC:"0xf4030086522a5beea4988f8ca5b36dbc97bee88c"
 };
 
 const abi=["function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)"];
@@ -182,18 +242,22 @@ const abi=["function latestRoundData() view returns (uint80,int256,uint256,uint2
 async function getCL(symbol){
 if(!feeds[symbol]) return null;
 
+try{
 const provider=new ethers.providers.Web3Provider(window.ethereum);
 const c=new ethers.Contract(feeds[symbol],abi,provider);
 let d=await c.latestRoundData();
 return d[1]/1e8;
+}catch{
+return null;
+}
 }
 
 // ===== STREAM =====
 function startStreams(symbol){
 
 if(wsPrice) wsPrice.close();
-
 wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
+
 wsPrice.onmessage=async e=>{
 let d=JSON.parse(e.data);
 
@@ -206,13 +270,16 @@ document.getElementById("change").innerText=d.P+"%";
 };
 
 if(wsDepth) wsDepth.close();
-
 wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth10@100ms`);
+
 wsDepth.onmessage=e=>{
 let d=JSON.parse(e.data);
 
-document.getElementById("asks").innerHTML=d.asks.map(a=>a.join(" | ")).join("<br>");
-document.getElementById("bids").innerHTML=d.bids.map(b=>b.join(" | ")).join("<br>");
+document.getElementById("asks").innerHTML=
+d.asks.map(a=>"<div>"+a.join(" | ")+"</div>").join("");
+
+document.getElementById("bids").innerHTML=
+d.bids.map(b=>"<div>"+b.join(" | ")+"</div>").join("");
 };
 }
 
@@ -243,22 +310,21 @@ let myNFTs=[];
 
 async function mintNFT(){
 let f=document.getElementById("nftFile").files[0];
-if(!f) return alert("choose file");
+if(!f) return alert("Chọn file");
 
 let form=new FormData();
 form.append("file",f);
 
-// demo API
+let cid="demoCID";
+
+try{
 let res=await fetch("https://api.shelby.xyz/upload",{
 method:"POST",
 body:form
-}).catch(()=>null);
-
-let cid="demoCID";
-if(res){
+});
 let d=await res.json();
 cid=d.cid;
-}
+}catch{}
 
 let url="https://gateway.shelby.xyz/ipfs/"+cid;
 
