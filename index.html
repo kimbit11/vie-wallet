@@ -11,7 +11,6 @@
 body{margin:0;background:#050816;color:white;font-family:Arial}
 .container{max-width:420px;margin:auto;padding:10px}
 .card{background:#0b1220;margin:10px;padding:12px;border-radius:12px;overflow:hidden}
-
 button{padding:10px;border:none;border-radius:10px;width:100%;cursor:pointer}
 input,select{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
 
@@ -24,84 +23,20 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 #asks div{color:#ef4444;font-size:12px}
 #bids div{color:#22c55e;font-size:12px}
 
-/* MARKET */
-.market-grid{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:10px
-}
+.market-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.market-card{background:#0b1220;padding:12px;border-radius:14px;transition:0.2s;display:flex;flex-direction:column;gap:8px}
+.market-card:hover{transform:scale(1.03);background:#111827}
+.market-top{display:flex;gap:10px;align-items:center;cursor:pointer}
+.market-price{display:flex;justify-content:space-between;font-size:16px;font-weight:bold}
+.market-actions{display:flex;gap:6px}
+.market-actions button{flex:1;font-size:12px;padding:6px}
 
-.market-card{
-background:#0b1220;
-padding:12px;
-border-radius:14px;
-transition:0.2s;
-display:flex;
-flex-direction:column;
-gap:8px;
-}
+#tv_chart{width:100%;height:320px;border-radius:12px;overflow:hidden}
 
-.market-card:hover{
-transform:scale(1.03);
-background:#111827;
-}
+.timeframes{display:flex;gap:6px;margin:10px 0}
+.timeframes button{flex:1;background:#111;color:#ccc;border-radius:6px;padding:6px;font-size:12px}
 
-.market-top{
-display:flex;
-gap:10px;
-align-items:center;
-cursor:pointer;
-}
-
-.market-price{
-display:flex;
-justify-content:space-between;
-font-size:16px;
-font-weight:bold;
-}
-
-.market-actions{
-display:flex;
-gap:6px;
-}
-
-.market-actions button{
-flex:1;
-font-size:12px;
-padding:6px;
-}
-
-/* CHART */
-#tv_chart{
-width:100%;
-height:320px;
-border-radius:12px;
-overflow:hidden;
-}
-
-.timeframes{
-display:flex;
-gap:6px;
-margin:10px 0;
-}
-
-.timeframes button{
-flex:1;
-background:#111;
-color:#ccc;
-border-radius:6px;
-padding:6px;
-font-size:12px;
-}
-
-.fullscreen{
-position:fixed;
-top:0;
-left:0;
-width:100%;
-height:100%;
-z-index:9999;
-}
+.fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999}
 </style>
 </head>
 
@@ -118,10 +53,26 @@ z-index:9999;
 <div class="tab" onclick="showOnly('nft')">NFT</div>
 </div>
 
-<!-- WALLET -->
+<!-- WALLET (UPDATED) -->
 <div id="wallet" class="card">
+
+<h3>Wallet</h3>
+
+<select id="chainSelect">
+<option value="evm">Ethereum (EVM)</option>
+<option value="solana">Solana</option>
+<option value="aptos">Aptos</option>
+</select>
+
 <button onclick="connectWallet()">Connect Wallet</button>
-<p id="address"></p>
+<button onclick="createWallet()">Create Wallet</button>
+<button onclick="loginWallet()">Login with Wallet</button>
+
+<p><b>Address:</b> <span id="address"></span></p>
+<p id="loginStatus" style="color:#22c55e"></p>
+
+<div id="walletInfo" style="font-size:12px;color:#aaa"></div>
+
 </div>
 
 <!-- MARKET -->
@@ -210,16 +161,7 @@ z-index:9999;
 
 <script>
 
-// WALLET
-let provider, signer;
-async function connectWallet(){
-provider=new ethers.providers.Web3Provider(window.ethereum);
-await provider.send("eth_requestAccounts",[]);
-signer=provider.getSigner();
-document.getElementById("address").innerText=await signer.getAddress();
-}
-
-// NAV
+// ===== NAV =====
 function showOnly(id){
 ["wallet","market","trade","p2p","nft"].forEach(t=>{
 document.getElementById(t).style.display="none";
@@ -227,7 +169,118 @@ document.getElementById(t).style.display="none";
 document.getElementById(id).style.display="block";
 }
 
-// MARKET
+// ===== WALLET MULTI-CHAIN =====
+let provider, signer, userSession=null;
+
+async function connectWallet(){
+
+let chain=document.getElementById("chainSelect").value;
+
+if(chain==="evm" && window.ethereum){
+provider=new ethers.providers.Web3Provider(window.ethereum);
+await provider.send("eth_requestAccounts",[]);
+signer=provider.getSigner();
+document.getElementById("address").innerText=
+await signer.getAddress();
+}
+
+if(chain==="solana" && window.solana){
+let resp=await window.solana.connect();
+document.getElementById("address").innerText=
+resp.publicKey.toString();
+}
+
+if(chain==="aptos" && window.aptos){
+let resp=await window.aptos.connect();
+document.getElementById("address").innerText=
+resp.address;
+}
+
+}
+
+// CREATE WALLET (DEMO)
+function createWallet(){
+
+let chain=document.getElementById("chainSelect").value;
+
+if(chain==="evm"){
+let wallet=ethers.Wallet.createRandom();
+
+document.getElementById("address").innerText=wallet.address;
+
+document.getElementById("walletInfo").innerHTML=`
+Private Key: ${wallet.privateKey}<br>
+Seed Phrase: ${wallet.mnemonic.phrase}
+`;
+}else{
+let pk=ethers.utils.hexlify(ethers.utils.randomBytes(32));
+
+document.getElementById("address").innerText=chain+" wallet (demo)";
+
+document.getElementById("walletInfo").innerHTML=`
+Private Key: ${pk}<br>
+(Need SDK for real wallet)
+`;
+}
+
+}
+
+// LOGIN WEB3
+async function loginWallet(){
+
+let chain=document.getElementById("chainSelect").value;
+
+if(chain==="evm"){
+if(!signer){alert("Connect first");return;}
+
+let nonce=Math.floor(Math.random()*100000);
+let message=`Login Vie Wallet\nNonce: ${nonce}`;
+
+let signature=await signer.signMessage(message);
+
+let address=await signer.getAddress();
+let recovered=ethers.utils.verifyMessage(message,signature);
+
+if(recovered.toLowerCase()===address.toLowerCase()){
+userSession={address,chain:"EVM"};
+localStorage.setItem("vieSession",JSON.stringify(userSession));
+document.getElementById("loginStatus").innerText="Logged: "+address;
+}
+}
+
+if(chain==="solana" && window.solana){
+let resp=await window.solana.connect();
+let msg=new TextEncoder().encode("Login Vie Wallet");
+await window.solana.signMessage(msg,"utf8");
+
+userSession={address:resp.publicKey.toString(),chain:"Solana"};
+localStorage.setItem("vieSession",JSON.stringify(userSession));
+document.getElementById("loginStatus").innerText="Logged: "+userSession.address;
+}
+
+if(chain==="aptos" && window.aptos){
+let resp=await window.aptos.connect();
+await window.aptos.signMessage({message:"Login Vie Wallet"});
+
+userSession={address:resp.address,chain:"Aptos"};
+localStorage.setItem("vieSession",JSON.stringify(userSession));
+document.getElementById("loginStatus").innerText="Logged: "+userSession.address;
+}
+
+}
+
+// AUTO SESSION
+window.onload=()=>{
+let s=localStorage.getItem("vieSession");
+if(s){
+let data=JSON.parse(s);
+document.getElementById("loginStatus").innerText="Session: "+data.address;
+}
+loadTopCoins();
+loadCountry();
+}
+
+// ===== MARKET =====
 async function loadTopCoins(){
 let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=10");
 let data=await res.json();
@@ -238,50 +291,18 @@ let change=c.price_change_percentage_24h.toFixed(2);
 let color=change>=0?"#22c55e":"#ef4444";
 
 html+=`
-<div class="market-card">
-<div class="market-top" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
-<img src="${c.image}" width="28">
-<div>
-<b>${c.symbol.toUpperCase()}</b><br>
-<small style="color:#888">${c.name}</small>
-</div>
-</div>
-
-<div class="market-price">
+<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
+<b>${c.symbol.toUpperCase()}</b>
 $${c.current_price}
-<span style="color:${color}">
-${change>0?"+":""}${change}%
-</span>
-</div>
-
-<div class="market-actions">
-<button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','BUY')">Buy</button>
-<button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','SELL')">Sell</button>
-</div>
+<span style="color:${color}">${change}%</span>
 </div>`;
 });
 
 document.getElementById("marketList").innerHTML=html;
 }
-loadTopCoins();
 
-// SEARCH
-async function searchToken(){
-let q=document.querySelector("#market input").value;
-if(q.length<2)return;
-
-let res=await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
-let data=await res.json();
-
-let html="";
-data.coins.slice(0,10).forEach(c=>{
-html+=`<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">${c.name}</div>`;
-});
-document.getElementById("marketList").innerHTML=html;
-}
-
-// TRADE
-let currentSymbol="", currentTF="15", wsPrice, wsDepth;
+// ===== TRADE =====
+let currentSymbol="", wsPrice, wsDepth;
 
 function openTrade(symbol){
 currentSymbol=symbol;
@@ -296,122 +317,39 @@ document.getElementById("tv_chart").innerHTML="";
 new TradingView.widget({
 container_id:"tv_chart",
 symbol:"BINANCE:"+currentSymbol,
-interval:currentTF,
+interval:"15",
 theme:"dark",
 autosize:true
 });
 }
 
-function setTF(tf){
-currentTF=tf;
-loadChart();
-}
-
-function toggleFull(){
-document.getElementById("tv_chart").classList.toggle("fullscreen");
-}
-
 function startStreams(symbol){
-
 if(wsPrice) wsPrice.close();
 wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
 wsPrice.onmessage=e=>{
 let d=JSON.parse(e.data);
 document.getElementById("price").innerText=d.c;
-document.getElementById("change").innerText=d.P+"%";
-};
-
-if(wsDepth) wsDepth.close();
-wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth10@100ms`);
-wsDepth.onmessage=e=>{
-let d=JSON.parse(e.data);
-document.getElementById("asks").innerHTML=d.asks.map(a=>a.join(" | ")).join("<br>");
-document.getElementById("bids").innerHTML=d.bids.map(b=>b.join(" | ")).join("<br>");
 };
 }
 
-// QUICK TRADE
-function quickTrade(symbol,side){
-openTrade(symbol);
-setTimeout(()=>{
-document.getElementById("orderAmount").value=1;
-},300);
-}
-
-// ===== P2P PRO =====
+// ===== P2P =====
 let offers=[];
-let currentFX=0;
-
-const banks={
-VN:["Vietcombank","Techcombank","ACB"],
-US:["Chase","Bank of America","Wells Fargo"],
-JP:["MUFG","SMBC"],
-KR:["Kookmin","Shinhan"]
-};
-
-function currencyMap(c){
-return {
-VN:"VND",
-US:"USD",
-JP:"JPY",
-KR:"KRW"
-}[c];
-}
+const banks={VN:["Vietcombank"],US:["Chase"],JP:["MUFG"],KR:["Kookmin"]};
 
 async function loadCountry(){
 let c=document.getElementById("country").value;
-
 document.getElementById("bank").innerHTML=
 banks[c].map(b=>`<option>${b}</option>`).join("");
-
-let res=await fetch("https://api.exchangerate-api.com/v4/latest/USD");
-let data=await res.json();
-
-currentFX=data.rates[currencyMap(c)];
-document.getElementById("fxRate").innerText=currentFX;
-
-updateP2PPrice();
-}
-
-function updateP2PPrice(){
-let local=1*currentFX;
-document.getElementById("p2pPrice").value=local.toFixed(2);
+document.getElementById("fxRate").innerText="demo";
 }
 
 function createOffer(type){
-
-let kyc=document.getElementById("kycCheck").checked;
-if(!kyc){
-alert("KYC required!");
-return;
-}
-
-let offer={
-type:type,
-country:document.getElementById("country").value,
-bank:document.getElementById("bank").value,
-amount:document.getElementById("p2pAmount").value,
-price:document.getElementById("p2pPrice").value
-};
-
-offers.push(offer);
-renderOffers();
-}
-
-function renderOffers(){
+offers.push({type});
 document.getElementById("offers").innerHTML=
-offers.map(o=>`
-<div class="card">
-<b>${o.type}</b> ${o.amount} USDT<br>
-${o.price} (${o.country})<br>
- ${o.bank}
-</div>
-`).join("");
+offers.map(o=>`<div>${o.type}</div>`).join("");
 }
 
-loadCountry();
-
-// NFT
+// ===== NFT =====
 let myNFTs=[];
 function mintNFT(){
 let f=document.getElementById("nftFile").files[0];
