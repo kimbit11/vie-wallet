@@ -1,146 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>VIE Global Crypto Wallet</title>
+<title>VIE Wallet</title>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-  font-family: Arial;
-  background: #020617;
-  color: white;
-  margin: 0;
-}
-
-.container {
-  max-width: 420px;
-  margin: auto;
-  padding: 20px;
-}
-
-h2 {
-  text-align: center;
-}
-
-.tabs {
-  display: flex;
-  margin-bottom: 10px;
-}
-
-.tab {
-  flex: 1;
-  padding: 10px;
-  background: #0f172a;
-  border: none;
-  color: white;
-  cursor: pointer;
-}
-
-.tab.active {
-  background: #22c55e;
-}
-
-.box {
-  background: #0f172a;
-  padding: 15px;
-  border-radius: 10px;
-  margin-top: 10px;
-}
-
-input, select {
-  width: 95%;
-  padding: 8px;
-  margin: 5px;
-  border-radius: 6px;
-  border: none;
-}
-
-button {
-  padding: 8px;
-  border: none;
-  border-radius: 6px;
-  background: #22c55e;
-  cursor: pointer;
-  margin: 3px;
-}
-
-.card {
-  background: #020617;
-  padding: 10px;
-  margin-top: 10px;
-  border-radius: 8px;
-}
-
-img {
-  width: 100%;
-  border-radius: 6px;
-}
+body {background:#020617;color:white;font-family:Arial;margin:0}
+.container{max-width:420px;margin:auto;padding:20px}
+h2{text-align:center}
+.tabs{display:flex;margin-bottom:10px}
+.tab{flex:1;padding:10px;background:#0f172a;border:none;color:white;cursor:pointer}
+.tab.active{background:#22c55e}
+.box{background:#0f172a;padding:12px;margin-top:10px;border-radius:8px}
+input,select{width:95%;padding:8px;margin:5px;border-radius:6px;border:none}
+button{padding:8px;margin:4px;background:#22c55e;border:none;cursor:pointer}
+.card{background:#020617;padding:10px;margin-top:10px;border-radius:8px}
+img{width:100%;border-radius:6px}
 </style>
 </head>
 
 <body>
-
 <div class="container">
 
-<h2>🌍 VIE Global Wallet</h2>
+<h2>VIE Wallet</h2>
 
-<!-- TABS -->
 <div class="tabs">
-  <button class="tab active" onclick="showTab('wallet')">Wallet</button>
-  <button class="tab" onclick="showTab('exchange')">Exchange</button>
-  <button class="tab" onclick="showTab('nft')">NFT</button>
+<button class="tab active" onclick="showTab(event,'wallet')">Wallet</button>
+<button class="tab" onclick="showTab(event,'exchange')">Exchange</button>
+<button class="tab" onclick="showTab(event,'nft')">NFT</button>
 </div>
 
 <!-- WALLET -->
 <div id="wallet" class="tabContent">
-  <div class="box">
-    <h4>💼 Balance</h4>
-    <p id="usdt">USDT: 100</p>
-    <p id="eth">ETH: 2</p>
-  </div>
 
-  <div class="box">
-    <h4>📊 Crypto Price</h4>
-    <p id="price">Loading...</p>
-  </div>
+<div class="box">
+<h4>Wallet</h4>
+<button onclick="connectWallet()">Connect MetaMask</button>
+<p id="address"></p>
+</div>
+
+<div class="box">
+<h4>Balance</h4>
+<p id="usdt">USDT: 100</p>
+<p id="eth">ETH: 2</p>
+</div>
+
+<div class="box">
+<h4>Market</h4>
+<canvas id="chart"></canvas>
+</div>
+
 </div>
 
 <!-- EXCHANGE -->
 <div id="exchange" class="tabContent" style="display:none">
+<div class="box">
 
-  <div class="box">
-    <h4>🌍 Buy / Sell USDT</h4>
+<h4>Buy / Sell USDT</h4>
 
-    <input id="amount" placeholder="Enter USDT">
+<input id="amount" placeholder="Amount">
 
-    <select id="country">
-      <option value="usd">USA 🇺🇸</option>
-      <option value="jpy">Japan 🇯🇵</option>
-      <option value="vnd">Vietnam 🇻🇳</option>
-      <option value="eur">Europe 🇪🇺</option>
-      <option value="sgd">Singapore 🇸🇬</option>
-    </select>
+<select id="currency">
+<option value="usd">USD</option>
+<option value="vnd">VND</option>
+<option value="jpy">JPY</option>
+<option value="eur">EUR</option>
+</select>
 
-    <button onclick="buyUSDT()">Buy</button>
-    <button onclick="sellUSDT()">Sell</button>
+<button onclick="buy()">Buy</button>
+<button onclick="sell()">Sell</button>
 
-    <p id="result"></p>
-  </div>
+<p id="result"></p>
 
+</div>
 </div>
 
 <!-- NFT -->
 <div id="nft" class="tabContent" style="display:none">
 
-  <div class="box">
-    <h4>Create NFT</h4>
-    <input id="name" placeholder="Name">
-    <input id="image" placeholder="Image URL">
-    <input id="priceNFT" placeholder="Price ETH">
-    <button onclick="createNFT()">Create</button>
-  </div>
+<div class="box">
+<h4>Create NFT</h4>
+<input id="name" placeholder="Name">
+<input id="image" placeholder="Image URL">
+<input id="priceNFT" placeholder="Price ETH">
+<button onclick="createNFT()">Create</button>
+</div>
 
-  <div id="market"></div>
+<div id="marketNFT"></div>
 
 </div>
 
@@ -148,148 +97,122 @@ img {
 
 <script>
 
-// ===== TAB =====
-function showTab(tab) {
-  document.querySelectorAll(".tabContent").forEach(t => t.style.display = "none");
-  document.getElementById(tab).style.display = "block";
-
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  event.target.classList.add("active");
+// TAB
+function showTab(e, tab){
+document.querySelectorAll(".tabContent").forEach(t=>t.style.display="none")
+document.getElementById(tab).style.display="block"
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"))
+e.target.classList.add("active")
 }
 
-// ===== BALANCE =====
-let usdtBalance = 100;
-let ethBalance = 2;
+// WALLET CONNECT
+async function connectWallet(){
+if(!window.ethereum) return alert("Install MetaMask")
 
-function updateBalance() {
-  document.getElementById("usdt").innerText = "USDT: " + usdtBalance;
-  document.getElementById("eth").innerText = "ETH: " + ethBalance;
+const provider = new ethers.providers.Web3Provider(window.ethereum)
+await provider.send("eth_requestAccounts", [])
+const signer = provider.getSigner()
+const address = await signer.getAddress()
+
+document.getElementById("address").innerText = address
 }
 
-// ===== PRICE =====
-async function getPrice() {
-  let res = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum,tether&vs_currencies=usd");
-  let data = await res.json();
+// BALANCE
+let usdt = 100
+let eth = 2
 
-  document.getElementById("price").innerText =
-    "ETH: $" + data.ethereum.usd + " | USDT: $" + data.tether.usd;
+function updateBalance(){
+document.getElementById("usdt").innerText="USDT: "+usdt
+document.getElementById("eth").innerText="ETH: "+eth
+}
+updateBalance()
+
+// EXCHANGE
+let rates = {usd:1,vnd:25000,jpy:150,eur:0.9}
+
+function buy(){
+let a=parseFloat(amount.value)
+let c=currency.value
+if(!a) return
+
+usdt+=a
+updateBalance()
+
+result.innerText="Bought "+a+" USDT = "+(a*rates[c]).toLocaleString()+" "+c.toUpperCase()
 }
 
-getPrice();
-setInterval(getPrice, 10000);
+function sell(){
+let a=parseFloat(amount.value)
+let c=currency.value
+if(usdt<a) return alert("Not enough USDT")
 
-// ===== EXCHANGE =====
-let rates = {};
+usdt-=a
+updateBalance()
 
-async function fetchRates() {
-  let res = await fetch(
-    "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=usd,jpy,vnd,eur,sgd"
-  );
-  let data = await res.json();
-  rates = data.tether;
+result.innerText="Sold "+a+" USDT = "+(a*rates[c]).toLocaleString()+" "+c.toUpperCase()
 }
 
-fetchRates();
+// NFT
+let nfts=[]
 
-function buyUSDT() {
-  let amount = parseFloat(document.getElementById("amount").value);
-  let country = document.getElementById("country").value;
+function createNFT(){
+let name=document.getElementById("name").value
+let image=document.getElementById("image").value
+let price=parseFloat(document.getElementById("priceNFT").value)
 
-  if (!amount) return;
+if(!name||!image||!price) return alert("Fill all")
 
-  let cost = amount * rates[country];
-
-  usdtBalance += amount;
-  updateBalance();
-
-  document.getElementById("result").innerText =
-    "Bought " + amount + " USDT ≈ " +
-    cost.toLocaleString() + " " + country.toUpperCase();
+nfts.push({id:Date.now(),name,image,price,owner:"me"})
+renderNFT()
 }
 
-function sellUSDT() {
-  let amount = parseFloat(document.getElementById("amount").value);
-  let country = document.getElementById("country").value;
+function buyNFT(id){
+let nft=nfts.find(n=>n.id===id)
+if(eth<nft.price) return alert("Not enough ETH")
 
-  if (usdtBalance < amount) {
-    alert("Not enough USDT");
-    return;
-  }
-
-  let received = amount * rates[country];
-
-  usdtBalance -= amount;
-  updateBalance();
-
-  document.getElementById("result").innerText =
-    "Sold " + amount + " USDT ≈ " +
-    received.toLocaleString() + " " + country.toUpperCase();
+eth-=nft.price
+nft.owner="me"
+updateBalance()
+renderNFT()
 }
 
-// ===== NFT =====
-let nfts = [];
-
-function createNFT() {
-  let name = document.getElementById("name").value;
-  let image = document.getElementById("image").value;
-  let price = parseFloat(document.getElementById("priceNFT").value);
-
-  if (!name || !image || !price) return;
-
-  nfts.push({
-    id: Date.now(),
-    name,
-    image,
-    price,
-    owner: "me"
-  });
-
-  renderNFT();
+function sellNFT(id){
+let nft=nfts.find(n=>n.id===id)
+nft.owner="market"
+renderNFT()
 }
 
-function buyNFT(id) {
-  let nft = nfts.find(n => n.id === id);
-
-  if (ethBalance < nft.price) {
-    alert("Not enough ETH");
-    return;
-  }
-
-  ethBalance -= nft.price;
-  nft.owner = "me";
-  updateBalance();
-  renderNFT();
+function renderNFT(){
+let html=""
+nfts.forEach(n=>{
+html+=`
+<div class="card">
+<img src="${n.image}">
+<h4>${n.name}</h4>
+<p>${n.price} ETH</p>
+<p>${n.owner}</p>
+${n.owner==="market"
+? `<button onclick="buyNFT(${n.id})">Buy</button>`
+: `<button onclick="sellNFT(${n.id})">Sell</button>`}
+</div>`
+})
+document.getElementById("marketNFT").innerHTML=html
 }
 
-function sellNFT(id) {
-  let nft = nfts.find(n => n.id === id);
-  nft.owner = "market";
-  renderNFT();
+// CHART
+async function loadChart(){
+let res=await fetch("https://api.coingecko.com/api/v3/coins/ethereum/market_chart?vs_currency=usd&days=1")
+let data=await res.json()
+
+let prices=data.prices.map(p=>p[1])
+
+new Chart(document.getElementById("chart"),{
+type:'line',
+data:{labels:prices,datasets:[{data:prices}]}
+})
 }
 
-function renderNFT() {
-  let html = "";
-
-  nfts.forEach(nft => {
-    html += `
-      <div class="card">
-        <img src="${nft.image}">
-        <h4>${nft.name}</h4>
-        <p>${nft.price} ETH</p>
-        <p>${nft.owner}</p>
-        ${
-          nft.owner === "market"
-          ? `<button onclick="buyNFT(${nft.id})">Buy</button>`
-          : `<button onclick="sellNFT(${nft.id})">Sell</button>`
-        }
-      </div>
-    `;
-  });
-
-  document.getElementById("market").innerHTML = html;
-}
-
-updateBalance();
+loadChart()
 
 </script>
 
