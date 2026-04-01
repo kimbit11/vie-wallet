@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>VIE Wallet</title>
+<title>vie wallet</title>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -10,35 +10,48 @@
 <style>
 body{margin:0;background:#050816;color:white;font-family:Arial}
 .container{max-width:420px;margin:auto;padding:10px}
+
 .card{background:#0b1220;margin:10px;padding:12px;border-radius:12px}
-button{padding:10px;border:none;border-radius:10px;width:100%}
-input,select{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
+
+button{
+padding:10px;border:none;border-radius:10px;width:100%;
+cursor:pointer
+}
+
+input,select{
+width:100%;padding:10px;background:#111;color:white;
+border:none;border-radius:8px;margin-top:5px
+}
+
 .tabs{display:flex;justify-content:space-around}
 .tab{cursor:pointer;padding:10px}
 
-/* MARKET */
-.market-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.market-item{background:#0b1220;padding:10px;border-radius:12px}
+.market-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px
+}
+
+.market-item{
+background:#0b1220;
+padding:10px;
+border-radius:12px;
+cursor:pointer
+}
+
 .buy{background:#064e3b;color:#22c55e}
 .sell{background:#7f1d1d;color:#ef4444}
 
-/* ORDERBOOK */
 #asks div{color:#ef4444;font-size:12px}
 #bids div{color:#22c55e;font-size:12px}
 
-/* COUNTRY POPUP */
-.country-popup{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
-  background:#1f2937;
-  border-radius:20px 20px 0 0;
-  padding:20px;
-}
-.country-popup div{
-  padding:12px;
-  font-size:18px;
+.popup{
+position:fixed;
+bottom:0;
+width:100%;
+background:#1f2937;
+padding:20px;
+border-radius:20px 20px 0 0;
 }
 </style>
 </head>
@@ -47,26 +60,27 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 
 <div class="container">
 
-<h2>VIE Wallet</h2>
+<h2 style="letter-spacing:1px">
+  vie <span style="color:#22c55e">wallet</span>
+</h2>
 
 <div class="tabs">
-  <div class="tab" onclick="showOnly('wallet')">Wallet</div>
-  <div class="tab" onclick="showOnly('market')">Market</div>
-  <div class="tab" onclick="showOnly('p2p')">P2P</div>
-  <div class="tab" onclick="showOnly('nft')">NFT</div>
+<div class="tab" onclick="show('wallet')">Wallet</div>
+<div class="tab" onclick="show('market')">Market</div>
+<div class="tab" onclick="show('p2p')">P2P</div>
+<div class="tab" onclick="show('nft')">NFT</div>
 </div>
 
 <!-- WALLET -->
 <div id="wallet" class="card">
-<button onclick="connectWallet()">Connect Wallet</button>
-<p id="address"></p>
-<p id="balance"></p>
+<button onclick="connect()">Connect Wallet</button>
+<p id="addr"></p>
 </div>
 
 <!-- MARKET -->
 <div id="market" style="display:none">
-<input placeholder="Search coin..." onkeyup="searchToken()">
-<div id="marketList" class="market-grid"></div>
+<input placeholder="Search coin..." onkeyup="search()">
+<div id="coins" class="market-grid"></div>
 </div>
 
 <!-- TRADE -->
@@ -77,26 +91,19 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 <h1 id="price"></h1>
 <span id="change"></span>
 
-<div id="tv_chart" style="height:300px"></div>
+<div id="chart" style="height:300px"></div>
 
-<div style="display:flex;gap:10px;margin-top:10px">
-<button class="buy">MUA</button>
-<button class="sell">BÁN</button>
+<div style="display:flex;gap:10px">
+<button class="buy" onclick="sendOrder('BUY')">BUY</button>
+<button class="sell" onclick="sendOrder('SELL')">SELL</button>
 </div>
 </div>
 
-<!-- ORDER BOOK -->
 <div class="card">
 <h4>Order Book</h4>
-<div style="display:flex;justify-content:space-between">
-<div style="width:48%">
-<b style="color:#ef4444">Sell</b>
-<div id="asks"></div>
-</div>
-<div style="width:48%">
-<b style="color:#22c55e">Buy</b>
-<div id="bids"></div>
-</div>
+<div style="display:flex">
+<div style="width:50%" id="asks"></div>
+<div style="width:50%" id="bids"></div>
 </div>
 </div>
 
@@ -105,18 +112,14 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 <!-- P2P -->
 <div id="p2p" class="card" style="display:none">
 
-<h3> Buy / Sell USDT</h3>
-
 <div onclick="toggleCountry()" class="card">
-<span id="selectedCountry"> Select Country</span>
+<span id="countryLabel">Vietnam 🇻🇳</span>
 </div>
 
-<div id="countryList" class="country-popup" style="display:none">
-<div onclick="selectCountry('US','USA 🇺🇸')">USA 🇺🇸</div>
-<div onclick="selectCountry('JP','Japan 🇯🇵')">Japan 🇯🇵</div>
-<div onclick="selectCountry('VN','Vietnam 🇻🇳')">Vietnam 🇻🇳</div>
-<div onclick="selectCountry('EU','Europe 🇪🇺')">Europe 🇪🇺</div>
-<div onclick="selectCountry('SG','Singapore 🇸🇬')">Singapore 🇸🇬</div>
+<div id="countryPopup" class="popup" style="display:none">
+<div onclick="setCountry('VN')">Vietnam 🇻🇳</div>
+<div onclick="setCountry('US')">USA 🇺🇸</div>
+<div onclick="setCountry('JP')">Japan 🇯🇵</div>
 </div>
 
 <select id="bank"></select>
@@ -124,7 +127,7 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 <input id="p2pAmount" placeholder="USDT amount">
 <input id="p2pPrice" placeholder="Price">
 
-<button onclick="createOffer()">Create Offer</button>
+<button onclick="createP2P()">Create Offer</button>
 
 <div id="offers"></div>
 
@@ -132,200 +135,180 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 
 <!-- NFT -->
 <div id="nft" class="card" style="display:none">
-<input type="file" id="nftFile">
-<input id="nftName" placeholder="NFT name">
-<button onclick="mintNFT()">Mint</button>
-<div id="myNFTs"></div>
+<input type="file" id="file">
+<button onclick="mint()">Mint NFT</button>
+<div id="nfts"></div>
 </div>
 
 </div>
 
 <script>
 
-// WALLET
-let provider, signer, userAddress;
-async function connectWallet(){
-  provider=new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts",[]);
-  signer=provider.getSigner();
-  userAddress=await signer.getAddress();
-  document.getElementById("address").innerText=userAddress;
+// ===== WALLET =====
+let provider, signer;
+
+async function connect(){
+provider=new ethers.providers.Web3Provider(window.ethereum);
+await provider.send("eth_requestAccounts",[]);
+signer=provider.getSigner();
+document.getElementById("addr").innerText=await signer.getAddress();
 }
 
-// NAV
-function showOnly(id){
-  ["wallet","market","trade","p2p","nft"].forEach(t=>{
-    document.getElementById(t).style.display="none";
-  });
-  document.getElementById(id).style.display="block";
+// ===== NAV =====
+function show(id){
+["wallet","market","trade","p2p","nft"].forEach(x=>{
+document.getElementById(x).style.display="none";
+});
+document.getElementById(id).style.display="block";
 }
 
 // ===== MARKET =====
-async function loadTopCoins(){
-  let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1");
-  let data=await res.json();
+async function loadCoins(){
+let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=10");
+let data=await res.json();
 
-  let html="";
-  data.forEach(c=>{
-    html+=`
-    <div class="market-item" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
-      ${c.symbol.toUpperCase()}<br>
-      $${c.current_price}
-      <div style="display:flex">
-        <button class="buy">Mua</button>
-        <button class="sell">Bán</button>
-      </div>
-    </div>`;
-  });
+let html="";
+data.forEach(c=>{
+html+=`
+<div class="market-item" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
+<b>${c.symbol.toUpperCase()}</b><br>$${c.current_price}
+</div>`;
+});
 
-  document.getElementById("marketList").innerHTML=html;
+document.getElementById("coins").innerHTML=html;
 }
-loadTopCoins();
+loadCoins();
 
-// SEARCH
-async function searchToken(){
-  let q=document.querySelector("#market input").value;
-  if(q.length<2)return;
+async function search(){
+let q=document.querySelector("#market input").value;
+if(q.length<2)return;
 
-  let res=await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
-  let data=await res.json();
+let res=await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
+let data=await res.json();
 
-  let html="";
-  data.coins.slice(0,10).forEach(c=>{
-    html+=`<div class="market-item" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
-      ${c.name}
-    </div>`;
-  });
+let html="";
+data.coins.slice(0,5).forEach(c=>{
+html+=`
+<div class="market-item" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
+${c.name}
+</div>`;
+});
 
-  document.getElementById("marketList").innerHTML=html;
+document.getElementById("coins").innerHTML=html;
 }
 
 // ===== TRADE =====
-let wsPrice, wsDepth;
+let wsPrice, wsDepth, currentSymbol;
 
-function openTrade(symbol){
+function openTrade(sym){
 
-  showOnly("trade");
+currentSymbol=sym;
+show("trade");
 
-  document.getElementById("pair").innerText=symbol;
+document.getElementById("pair").innerText=sym;
 
-  document.getElementById("tv_chart").innerHTML="";
+document.getElementById("chart").innerHTML="";
+new TradingView.widget({
+container_id:"chart",
+symbol:"BINANCE:"+sym,
+height:300,
+theme:"dark"
+});
 
-  new TradingView.widget({
-    container_id:"tv_chart",
-    symbol:"BINANCE:"+symbol,
-    interval:"15",
-    theme:"dark",
-    height:300,
-    hide_top_toolbar:true
-  });
+// realtime price
+if(wsPrice) wsPrice.close();
+wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${sym.toLowerCase()}@ticker`);
 
-  startPriceStream(symbol);
-  startOrderBook(symbol);
+wsPrice.onmessage=e=>{
+let d=JSON.parse(e.data);
+
+let price=parseFloat(d.c).toFixed(2);
+document.getElementById("price").innerText=price;
+
+let ch=parseFloat(d.P).toFixed(2);
+let el=document.getElementById("change");
+
+el.innerText=(ch>0?"+":"")+ch+"%";
+el.style.color=ch>=0?"#22c55e":"#ef4444";
+};
+
+// orderbook
+if(wsDepth) wsDepth.close();
+wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${sym.toLowerCase()}@depth10@100ms`);
+
+wsDepth.onmessage=e=>{
+let d=JSON.parse(e.data);
+
+document.getElementById("asks").innerHTML=
+d.asks.map(a=>a.join(" | ")).join("<br>");
+
+document.getElementById("bids").innerHTML=
+d.bids.map(b=>b.join(" | ")).join("<br>");
+};
+
 }
 
-// REALTIME PRICE
-function startPriceStream(symbol){
+// ===== MATCHING ENGINE WS =====
+let socket=new WebSocket("ws://localhost:5000");
 
-  if(wsPrice) wsPrice.close();
-
-  wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
-
-  wsPrice.onmessage=(e)=>{
-    let d=JSON.parse(e.data);
-
-    document.getElementById("price").innerText=parseFloat(d.c).toFixed(2);
-
-    let change=parseFloat(d.P).toFixed(2);
-    let el=document.getElementById("change");
-    el.innerText=(change>0?"+":"")+change+"%";
-    el.style.color=change>=0?"#22c55e":"#ef4444";
-  };
+function sendOrder(type){
+socket.send(JSON.stringify({
+type:"ORDER",
+order:{
+type:type,
+price:document.getElementById("price").innerText,
+amount:1
 }
-
-// ORDER BOOK
-function startOrderBook(symbol){
-
-  if(wsDepth) wsDepth.close();
-
-  wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth10@100ms`);
-
-  wsDepth.onmessage=(e)=>{
-    let d=JSON.parse(e.data);
-
-    let asks="",bids="";
-
-    d.asks.forEach(a=>asks+=`<div>${a[0]} | ${a[1]}</div>`);
-    d.bids.forEach(b=>bids+=`<div>${b[0]} | ${b[1]}</div>`);
-
-    document.getElementById("asks").innerHTML=asks;
-    document.getElementById("bids").innerHTML=bids;
-  };
+}));
 }
 
 // ===== P2P =====
-const COUNTRIES={
-US:{currency:"USD",banks:["Chase"]},
-JP:{currency:"JPY",banks:["Mizuho"]},
-VN:{currency:"VND",banks:["Vietcombank"]},
-EU:{currency:"EUR",banks:["SEPA"]},
-SG:{currency:"SGD",banks:["DBS"]}
+const BANKS={
+VN:["Vietcombank"],
+US:["Chase"],
+JP:["Mizuho"]
 };
 
-let selectedCountryCode="VN";
+let country="VN";
 
 function toggleCountry(){
-  let el=document.getElementById("countryList");
-  el.style.display=el.style.display==="none"?"block":"none";
+let el=document.getElementById("countryPopup");
+el.style.display=el.style.display==="none"?"block":"none";
 }
 
-function selectCountry(code,label){
-  selectedCountryCode=code;
-  document.getElementById("selectedCountry").innerText=label;
-  document.getElementById("countryList").style.display="none";
-  updateBanks();
-}
+function setCountry(c){
+country=c;
+document.getElementById("countryLabel").innerText=c;
+document.getElementById("countryPopup").style.display="none";
 
-function updateBanks(){
-  let banks=COUNTRIES[selectedCountryCode].banks;
-  let html="";
-  banks.forEach(b=>html+=`<option>${b}</option>`);
-  document.getElementById("bank").innerHTML=html;
+let html="";
+BANKS[c].forEach(b=>html+=`<option>${b}</option>`);
+document.getElementById("bank").innerHTML=html;
 }
-updateBanks();
+setCountry("VN");
 
-let offers=[];
-function createOffer(){
-  offers.push({
-    id:Date.now(),
-    amount:document.getElementById("p2pAmount").value,
-    price:document.getElementById("p2pPrice").value
-  });
-  renderOffers();
-}
+function createP2P(){
+let html=document.getElementById("offers").innerHTML;
 
-function renderOffers(){
-  let html="";
-  offers.forEach(o=>{
-    html+=`<div class="card">${o.amount} USDT - ${o.price}</div>`;
-  });
-  document.getElementById("offers").innerHTML=html;
+html+=`
+<div class="card">
+${document.getElementById("p2pAmount").value} USDT
+</div>`;
+
+document.getElementById("offers").innerHTML=html;
 }
 
 // ===== NFT =====
-let myNFTs=[];
-function mintNFT(){
-  let file=document.getElementById("nftFile").files[0];
-  let url=URL.createObjectURL(file);
-  myNFTs.push(url);
-  renderNFT();
-}
-function renderNFT(){
-  let html="";
-  myNFTs.forEach(n=>{
-    html+=`<div class="card"><img src="${n}" width="100%"></div>`;
-  });
-  document.getElementById("myNFTs").innerHTML=html;
+let nfts=[];
+
+function mint(){
+let f=document.getElementById("file").files[0];
+let url=URL.createObjectURL(f);
+
+nfts.push(url);
+
+document.getElementById("nfts").innerHTML=
+nfts.map(n=>`<img src="${n}" width="100%">`).join("");
 }
 
 </script>
