@@ -2,35 +2,106 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>vie wallet pro</title>
+<title>vie wallet</title>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
-<script src="https://unpkg.com/aptos@latest/dist/index.js"></script>
 
 <style>
 body{margin:0;background:#050816;color:white;font-family:Arial}
 .container{max-width:420px;margin:auto;padding:10px}
-.card{background:#0b1220;margin:10px;padding:12px;border-radius:12px}
+.card{background:#0b1220;margin:10px;padding:12px;border-radius:12px;overflow:hidden}
 
 button{padding:10px;border:none;border-radius:10px;width:100%;cursor:pointer}
-input{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
+input,select{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
 
 .tabs{display:flex;justify-content:space-around}
-.tab{padding:8px;background:#111;border-radius:6px;margin:2px;cursor:pointer;text-align:center}
-
-.market-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.market-card{background:#0b1220;padding:12px;border-radius:12px;transition:.2s}
-.market-card:hover{transform:scale(1.03);background:#111827}
+.tab{cursor:pointer;padding:8px;background:#111;border-radius:6px;margin:2px;text-align:center}
 
 .buy{background:#064e3b;color:#22c55e}
 .sell{background:#7f1d1d;color:#ef4444}
 
-#tv_chart{width:100%;height:320px}
-.fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999}
-
 #asks div{color:#ef4444;font-size:12px}
 #bids div{color:#22c55e;font-size:12px}
+
+/* MARKET PRO */
+.market-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px
+}
+
+.market-card{
+background:#0b1220;
+padding:12px;
+border-radius:14px;
+transition:0.2s;
+display:flex;
+flex-direction:column;
+gap:8px;
+}
+
+.market-card:hover{
+transform:scale(1.03);
+background:#111827;
+}
+
+.market-top{
+display:flex;
+gap:10px;
+align-items:center;
+cursor:pointer;
+}
+
+.market-price{
+display:flex;
+justify-content:space-between;
+font-size:16px;
+font-weight:bold;
+}
+
+.market-actions{
+display:flex;
+gap:6px;
+}
+
+.market-actions button{
+flex:1;
+font-size:12px;
+padding:6px;
+}
+
+/* CHART */
+#tv_chart{
+width:100%;
+height:320px;
+border-radius:12px;
+overflow:hidden;
+}
+
+.timeframes{
+display:flex;
+gap:6px;
+margin:10px 0;
+}
+
+.timeframes button{
+flex:1;
+background:#111;
+color:#ccc;
+border-radius:6px;
+padding:6px;
+font-size:12px;
+}
+
+.fullscreen{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+z-index:9999;
+}
 </style>
 </head>
 
@@ -38,7 +109,7 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 
 <div class="container">
 
-<h2>vie <span style="color:#22c55e">wallet</span> pro</h2>
+<h2>vie <span style="color:#22c55e">wallet</span></h2>
 
 <div class="tabs">
 <div class="tab" onclick="showOnly('wallet')">Wallet</div>
@@ -49,8 +120,7 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 
 <!-- WALLET -->
 <div id="wallet" class="card">
-<button onclick="connectWallet()">Connect EVM</button>
-<button onclick="connectAptos()">Connect Aptos</button>
+<button onclick="connectWallet()">Connect Wallet</button>
 <p id="address"></p>
 </div>
 
@@ -68,20 +138,33 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 <h1 id="price"></h1>
 <span id="change"></span>
 
+<div class="timeframes">
+<button onclick="setTF('1')">1m</button>
+<button onclick="setTF('5')">5m</button>
+<button onclick="setTF('15')">15m</button>
+<button onclick="setTF('60')">1H</button>
+<button onclick="setTF('1D')">1D</button>
 <button onclick="toggleFull()">⛶</button>
+</div>
+
 <div id="tv_chart"></div>
 </div>
 
+<!-- TRADING PANEL -->
 <div class="card">
+<input id="orderPrice" placeholder="Price">
 <input id="orderAmount" placeholder="Amount">
 <button class="buy">BUY</button>
 <button class="sell">SELL</button>
 </div>
 
+<!-- ORDERBOOK -->
 <div class="card">
 <h4>Order Book</h4>
-<div id="asks"></div>
-<div id="bids"></div>
+<div style="display:flex">
+<div style="width:50%" id="asks"></div>
+<div style="width:50%" id="bids"></div>
+</div>
 </div>
 
 </div>
@@ -97,7 +180,7 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 <!-- NFT -->
 <div id="nft" class="card" style="display:none">
 <input type="file" id="nftFile">
-<button onclick="mintNFT()">Mint (Shelby)</button>
+<button onclick="mintNFT()">Mint</button>
 <div id="myNFTs"></div>
 </div>
 
@@ -105,7 +188,16 @@ input{width:100%;padding:10px;background:#111;color:white;border:none;border-rad
 
 <script>
 
-// ===== NAV =====
+// WALLET
+let provider, signer;
+async function connectWallet(){
+provider=new ethers.providers.Web3Provider(window.ethereum);
+await provider.send("eth_requestAccounts",[]);
+signer=provider.getSigner();
+document.getElementById("address").innerText=await signer.getAddress();
+}
+
+// NAV
 function showOnly(id){
 ["wallet","market","trade","p2p","nft"].forEach(t=>{
 document.getElementById(t).style.display="none";
@@ -113,38 +205,8 @@ document.getElementById(t).style.display="none";
 document.getElementById(id).style.display="block";
 }
 
-// ===== EVM WALLET =====
-async function connectWallet(){
-try{
-const provider=new ethers.providers.Web3Provider(window.ethereum);
-await provider.send("eth_requestAccounts",[]);
-const signer=provider.getSigner();
-const addr=await signer.getAddress();
-const balance=await provider.getBalance(addr);
-
-document.getElementById("address").innerText=
-"EVM: "+addr+"\nBalance: "+(balance/1e18).toFixed(4)+" ETH";
-}catch(e){
-alert("Wallet error");
-}
-}
-
-// ===== APTOS =====
-let aptosClient=new window.AptosClient("https://fullnode.mainnet.aptoslabs.com");
-
-async function connectAptos(){
-let acc=new window.AptosAccount();
-
-let res=await aptosClient.getAccountResources(acc.address());
-let coin=res.find(r=>r.type.includes("CoinStore"));
-let bal=coin?coin.data.coin.value/1e8:0;
-
-document.getElementById("address").innerText=
-"Aptos: "+acc.address().hex()+"\nBalance: "+bal+" APT";
-}
-
-// ===== MARKET (FULL UI GIỐNG BẢN GỐC) =====
-async function loadCoins(){
+// ===== MARKET PRO =====
+async function loadTopCoins(){
 let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=10");
 let data=await res.json();
 
@@ -157,21 +219,24 @@ let color=change>=0?"#22c55e":"#ef4444";
 html+=`
 <div class="market-card">
 
-<div onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
+<div class="market-top" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
 <img src="${c.image}" width="28">
-<b>${c.symbol.toUpperCase()}</b>
+<div>
+<b>${c.symbol.toUpperCase()}</b><br>
+<small style="color:#888">${c.name}</small>
+</div>
 </div>
 
-<div>
+<div class="market-price">
 $${c.current_price}
 <span style="color:${color}">
 ${change>0?"+":""}${change}%
 </span>
 </div>
 
-<div>
-<button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT')">Buy</button>
-<button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT')">Sell</button>
+<div class="market-actions">
+<button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','BUY')">Buy</button>
+<button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','SELL')">Sell</button>
 </div>
 
 </div>`;
@@ -179,157 +244,98 @@ ${change>0?"+":""}${change}%
 
 document.getElementById("marketList").innerHTML=html;
 }
-loadCoins();
+loadTopCoins();
 
 // SEARCH
 async function searchToken(){
 let q=document.querySelector("#market input").value;
-
-if(q.length<2){
-loadCoins();
-return;
-}
+if(q.length<2)return;
 
 let res=await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
 let data=await res.json();
 
 let html="";
 data.coins.slice(0,10).forEach(c=>{
-html+=`
-<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
-${c.name}
-</div>`;
+html+=`<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">${c.name}</div>`;
 });
-
 document.getElementById("marketList").innerHTML=html;
 }
 
 // ===== TRADE =====
-let wsPrice, wsDepth, currentSymbol="";
+let currentSymbol="", currentTF="15", wsPrice, wsDepth;
 
 function openTrade(symbol){
 currentSymbol=symbol;
 showOnly("trade");
-
 document.getElementById("pair").innerText=symbol;
-
-document.getElementById("tv_chart").innerHTML="";
-new TradingView.widget({
-container_id:"tv_chart",
-symbol:"BINANCE:"+symbol,
-interval:"15",
-theme:"dark"
-});
-
+loadChart();
 startStreams(symbol);
 }
 
-function quickTrade(symbol){
-openTrade(symbol);
-setTimeout(()=>{
-document.getElementById("orderAmount").value=1;
-},200);
+function loadChart(){
+document.getElementById("tv_chart").innerHTML="";
+new TradingView.widget({
+container_id:"tv_chart",
+symbol:"BINANCE:"+currentSymbol,
+interval:currentTF,
+theme:"dark",
+autosize:true
+});
 }
 
-// ===== CHAINLINK =====
-const feeds={
-ETH:"0x5f4ec3df9cbd43714fe2740f5e3616155c5b8419",
-BTC:"0xf4030086522a5beea4988f8ca5b36dbc97bee88c"
-};
-
-const abi=["function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)"];
-
-async function getCL(symbol){
-if(!feeds[symbol]) return null;
-
-try{
-const provider=new ethers.providers.Web3Provider(window.ethereum);
-const c=new ethers.Contract(feeds[symbol],abi,provider);
-let d=await c.latestRoundData();
-return d[1]/1e8;
-}catch{
-return null;
-}
-}
-
-// ===== STREAM =====
-function startStreams(symbol){
-
-if(wsPrice) wsPrice.close();
-wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
-
-wsPrice.onmessage=async e=>{
-let d=JSON.parse(e.data);
-
-let cl=await getCL(symbol.replace("USDT",""));
-
-document.getElementById("price").innerText=
-d.c+(cl?" | CL:"+cl.toFixed(2):"");
-
-document.getElementById("change").innerText=d.P+"%";
-};
-
-if(wsDepth) wsDepth.close();
-wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth10@100ms`);
-
-wsDepth.onmessage=e=>{
-let d=JSON.parse(e.data);
-
-document.getElementById("asks").innerHTML=
-d.asks.map(a=>"<div>"+a.join(" | ")+"</div>").join("");
-
-document.getElementById("bids").innerHTML=
-d.bids.map(b=>"<div>"+b.join(" | ")+"</div>").join("");
-};
+function setTF(tf){
+currentTF=tf;
+loadChart();
 }
 
 function toggleFull(){
 document.getElementById("tv_chart").classList.toggle("fullscreen");
 }
 
-// ===== P2P =====
-let offers=JSON.parse(localStorage.getItem("offers")||"[]");
+function startStreams(symbol){
 
+if(wsPrice) wsPrice.close();
+wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
+wsPrice.onmessage=e=>{
+let d=JSON.parse(e.data);
+document.getElementById("price").innerText=d.c;
+document.getElementById("change").innerText=d.P+"%";
+};
+
+if(wsDepth) wsDepth.close();
+wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth10@100ms`);
+wsDepth.onmessage=e=>{
+let d=JSON.parse(e.data);
+document.getElementById("asks").innerHTML=d.asks.map(a=>a.join(" | ")).join("<br>");
+document.getElementById("bids").innerHTML=d.bids.map(b=>b.join(" | ")).join("<br>");
+};
+}
+
+// QUICK TRADE
+function quickTrade(symbol,side){
+openTrade(symbol);
+setTimeout(()=>{
+document.getElementById("orderAmount").value=1;
+},300);
+}
+
+// P2P
+let offers=[];
 function createOffer(){
 offers.push({
 amount:document.getElementById("p2pAmount").value,
 price:document.getElementById("p2pPrice").value
 });
-localStorage.setItem("offers",JSON.stringify(offers));
-renderOffers();
-}
-
-function renderOffers(){
 document.getElementById("offers").innerHTML=
 offers.map(o=>`<div class="card">${o.amount} USDT - ${o.price}</div>`).join("");
 }
-renderOffers();
 
-// ===== SHELBY NFT =====
+// NFT
 let myNFTs=[];
-
-async function mintNFT(){
+function mintNFT(){
 let f=document.getElementById("nftFile").files[0];
-if(!f) return alert("Chọn file");
-
-let form=new FormData();
-form.append("file",f);
-
-let cid="demoCID";
-
-try{
-let res=await fetch("https://api.shelby.xyz/upload",{
-method:"POST",
-body:form
-});
-let d=await res.json();
-cid=d.cid;
-}catch{}
-
-let url="https://gateway.shelby.xyz/ipfs/"+cid;
-
+let url=URL.createObjectURL(f);
 myNFTs.push(url);
-
 document.getElementById("myNFTs").innerHTML=
 myNFTs.map(n=>`<img src="${n}" width="100%">`).join("");
 }
@@ -337,4 +343,4 @@ myNFTs.map(n=>`<img src="${n}" width="100%">`).join("");
 </script>
 
 </body>
-</html>
+</html> 
