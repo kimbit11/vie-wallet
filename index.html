@@ -13,7 +13,7 @@ body{margin:0;background:#050816;color:white;font-family:Arial}
 .card{background:#0b1220;margin:10px;padding:12px;border-radius:12px;overflow:hidden}
 
 button{padding:10px;border:none;border-radius:10px;width:100%;cursor:pointer}
-input,select{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
+input{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
 
 .tabs{display:flex;justify-content:space-around}
 .tab{cursor:pointer;padding:8px;background:#111;border-radius:6px;margin:2px;text-align:center}
@@ -21,24 +21,17 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 .buy{background:#064e3b;color:#22c55e}
 .sell{background:#7f1d1d;color:#ef4444}
 
-#asks div{color:#ef4444;font-size:12px}
-#bids div{color:#22c55e;font-size:12px}
-
-/* MARKET PRO */
-.market-grid{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:10px
-}
+/* MARKET */
+.market-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 .market-card{
 background:#0b1220;
 padding:12px;
 border-radius:14px;
-transition:0.2s;
 display:flex;
 flex-direction:column;
 gap:8px;
+transition:0.2s;
 }
 
 .market-card:hover{
@@ -46,29 +39,10 @@ transform:scale(1.03);
 background:#111827;
 }
 
-.market-top{
-display:flex;
-gap:10px;
-align-items:center;
-cursor:pointer;
-}
-
 .market-price{
 display:flex;
 justify-content:space-between;
-font-size:16px;
 font-weight:bold;
-}
-
-.market-actions{
-display:flex;
-gap:6px;
-}
-
-.market-actions button{
-flex:1;
-font-size:12px;
-padding:6px;
 }
 
 /* CHART */
@@ -81,7 +55,7 @@ overflow:hidden;
 
 .timeframes{
 display:flex;
-gap:6px;
+gap:5px;
 margin:10px 0;
 }
 
@@ -89,10 +63,13 @@ margin:10px 0;
 flex:1;
 background:#111;
 color:#ccc;
-border-radius:6px;
-padding:6px;
+padding:5px;
 font-size:12px;
 }
+
+/* ORDERBOOK */
+#asks div{color:#ef4444;font-size:12px}
+#bids div{color:#22c55e;font-size:12px}
 
 .fullscreen{
 position:fixed;
@@ -124,9 +101,8 @@ z-index:9999;
 <p id="address"></p>
 </div>
 
-<!-- MARKET -->
+<!-- MARKET FUTURES -->
 <div id="market" style="display:none">
-<input placeholder="Search coin..." onkeyup="searchToken()">
 <div id="marketList" class="market-grid"></div>
 </div>
 
@@ -150,12 +126,11 @@ z-index:9999;
 <div id="tv_chart"></div>
 </div>
 
-<!-- TRADING PANEL -->
+<!-- TRADING PANEL FUTURES -->
 <div class="card">
-<input id="orderPrice" placeholder="Price">
 <input id="orderAmount" placeholder="Amount">
-<button class="buy">BUY</button>
-<button class="sell">SELL</button>
+<button class="buy" onclick="placeOrder('LONG')">LONG</button>
+<button class="sell" onclick="placeOrder('SHORT')">SHORT</button>
 </div>
 
 <!-- ORDERBOOK -->
@@ -189,11 +164,10 @@ z-index:9999;
 <script>
 
 // WALLET
-let provider, signer;
 async function connectWallet(){
-provider=new ethers.providers.Web3Provider(window.ethereum);
+let provider=new ethers.providers.Web3Provider(window.ethereum);
 await provider.send("eth_requestAccounts",[]);
-signer=provider.getSigner();
+let signer=provider.getSigner();
 document.getElementById("address").innerText=await signer.getAddress();
 }
 
@@ -205,60 +179,75 @@ document.getElementById(t).style.display="none";
 document.getElementById(id).style.display="block";
 }
 
-// ===== MARKET PRO =====
-async function loadTopCoins(){
-let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=10");
+// ===== FUTURES MARKET REALTIME =====
+let marketSockets={};
+
+async function loadFuturesMarket(){
+
+let res=await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr");
 let data=await res.json();
+
+data=data
+.filter(c=>c.symbol.endsWith("USDT"))
+.sort((a,b)=>b.quoteVolume-a.quoteVolume)
+.slice(0,10);
 
 let html="";
 
 data.forEach(c=>{
-let change=c.price_change_percentage_24h.toFixed(2);
+let change=parseFloat(c.priceChangePercent).toFixed(2);
 let color=change>=0?"#22c55e":"#ef4444";
 
 html+=`
 <div class="market-card">
 
-<div class="market-top" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
-<img src="${c.image}" width="28">
-<div>
-<b>${c.symbol.toUpperCase()}</b><br>
-<small style="color:#888">${c.name}</small>
-</div>
+<div onclick="openTrade('${c.symbol}')">
+<b>${c.symbol}</b><br><small>Perpetual</small>
 </div>
 
 <div class="market-price">
-$${c.current_price}
-<span style="color:${color}">
+<span id="price-${c.symbol}">${parseFloat(c.lastPrice).toFixed(2)}</span>
+<span id="change-${c.symbol}" style="color:${color}">
 ${change>0?"+":""}${change}%
 </span>
 </div>
 
-<div class="market-actions">
-<button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','BUY')">Buy</button>
-<button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','SELL')">Sell</button>
+<div style="display:flex;gap:5px">
+<button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol}','LONG')">Long</button>
+<button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol}','SHORT')">Short</button>
 </div>
 
 </div>`;
 });
 
 document.getElementById("marketList").innerHTML=html;
+
+data.forEach(c=>startMarketStream(c.symbol));
 }
-loadTopCoins();
 
-// SEARCH
-async function searchToken(){
-let q=document.querySelector("#market input").value;
-if(q.length<2)return;
+loadFuturesMarket();
 
-let res=await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
-let data=await res.json();
+function startMarketStream(symbol){
+if(marketSockets[symbol]) return;
 
-let html="";
-data.coins.slice(0,10).forEach(c=>{
-html+=`<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">${c.name}</div>`;
-});
-document.getElementById("marketList").innerHTML=html;
+let ws=new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@ticker`);
+
+ws.onmessage=e=>{
+let d=JSON.parse(e.data);
+
+let priceEl=document.getElementById(`price-${symbol}`);
+let changeEl=document.getElementById(`change-${symbol}`);
+
+if(priceEl) priceEl.innerText=parseFloat(d.c).toFixed(2);
+
+if(changeEl){
+let change=parseFloat(d.P).toFixed(2);
+changeEl.innerText=(change>0?"+":"")+change+"%";
+changeEl.style.color=change>=0?"#22c55e":"#ef4444";
+}
+};
+
+marketSockets[symbol]=ws;
 }
 
 // ===== TRADE =====
@@ -268,6 +257,7 @@ function openTrade(symbol){
 currentSymbol=symbol;
 showOnly("trade");
 document.getElementById("pair").innerText=symbol;
+
 loadChart();
 startStreams(symbol);
 }
@@ -295,7 +285,7 @@ document.getElementById("tv_chart").classList.toggle("fullscreen");
 function startStreams(symbol){
 
 if(wsPrice) wsPrice.close();
-wsPrice=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@ticker`);
+wsPrice=new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@ticker`);
 wsPrice.onmessage=e=>{
 let d=JSON.parse(e.data);
 document.getElementById("price").innerText=d.c;
@@ -303,7 +293,7 @@ document.getElementById("change").innerText=d.P+"%";
 };
 
 if(wsDepth) wsDepth.close();
-wsDepth=new WebSocket(`wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}@depth10@100ms`);
+wsDepth=new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@depth10@100ms`);
 wsDepth.onmessage=e=>{
 let d=JSON.parse(e.data);
 document.getElementById("asks").innerHTML=d.asks.map(a=>a.join(" | ")).join("<br>");
@@ -319,6 +309,12 @@ document.getElementById("orderAmount").value=1;
 },300);
 }
 
+// ORDER
+function placeOrder(type){
+let amount=document.getElementById("orderAmount").value;
+alert(type+" "+amount+" "+currentSymbol);
+}
+
 // P2P
 let offers=[];
 function createOffer(){
@@ -327,7 +323,7 @@ amount:document.getElementById("p2pAmount").value,
 price:document.getElementById("p2pPrice").value
 });
 document.getElementById("offers").innerHTML=
-offers.map(o=>`<div class="card">${o.amount} USDT - ${o.price}</div>`).join("");
+offers.map(o=>`<div class="card">${o.amount} - ${o.price}</div>`).join("");
 }
 
 // NFT
