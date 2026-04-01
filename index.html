@@ -24,7 +24,7 @@ input,select{width:100%;padding:10px;background:#111;color:white;border:none;bor
 #asks div{color:#ef4444;font-size:12px}
 #bids div{color:#22c55e;font-size:12px}
 
-/* MARKET PRO */
+/* MARKET */
 .market-grid{
 display:grid;
 grid-template-columns:1fr 1fr;
@@ -150,7 +150,6 @@ z-index:9999;
 <div id="tv_chart"></div>
 </div>
 
-<!-- TRADING PANEL -->
 <div class="card">
 <input id="orderPrice" placeholder="Price">
 <input id="orderAmount" placeholder="Amount">
@@ -158,7 +157,6 @@ z-index:9999;
 <button class="sell">SELL</button>
 </div>
 
-<!-- ORDERBOOK -->
 <div class="card">
 <h4>Order Book</h4>
 <div style="display:flex">
@@ -171,10 +169,34 @@ z-index:9999;
 
 <!-- P2P -->
 <div id="p2p" class="card" style="display:none">
-<input id="p2pAmount" placeholder="Amount">
-<input id="p2pPrice" placeholder="Price">
-<button onclick="createOffer()">Create</button>
+
+<h3>P2P Trading</h3>
+
+<select id="country" onchange="loadCountry()">
+<option value="VN">Vietnam</option>
+<option value="US">United States</option>
+<option value="JP">Japan</option>
+<option value="KR">Korea</option>
+</select>
+
+<select id="bank"></select>
+
+<p>FX Rate: <span id="fxRate">...</span></p>
+
+<input id="p2pAmount" placeholder="USDT Amount">
+<input id="p2pPrice" placeholder="Price (auto)">
+
+<label style="font-size:12px">
+<input type="checkbox" id="kycCheck"> KYC Verified
+</label>
+
+<div style="display:flex;gap:6px;margin-top:6px">
+<button class="buy" onclick="createOffer('BUY')">Buy</button>
+<button class="sell" onclick="createOffer('SELL')">Sell</button>
+</div>
+
 <div id="offers"></div>
+
 </div>
 
 <!-- NFT -->
@@ -205,20 +227,18 @@ document.getElementById(t).style.display="none";
 document.getElementById(id).style.display="block";
 }
 
-// ===== MARKET PRO =====
+// MARKET
 async function loadTopCoins(){
 let res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=10");
 let data=await res.json();
 
 let html="";
-
 data.forEach(c=>{
 let change=c.price_change_percentage_24h.toFixed(2);
 let color=change>=0?"#22c55e":"#ef4444";
 
 html+=`
 <div class="market-card">
-
 <div class="market-top" onclick="openTrade('${c.symbol.toUpperCase()}USDT')">
 <img src="${c.image}" width="28">
 <div>
@@ -238,7 +258,6 @@ ${change>0?"+":""}${change}%
 <button class="buy" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','BUY')">Buy</button>
 <button class="sell" onclick="event.stopPropagation(); quickTrade('${c.symbol.toUpperCase()}USDT','SELL')">Sell</button>
 </div>
-
 </div>`;
 });
 
@@ -261,7 +280,7 @@ html+=`<div class="market-card" onclick="openTrade('${c.symbol.toUpperCase()}USD
 document.getElementById("marketList").innerHTML=html;
 }
 
-// ===== TRADE =====
+// TRADE
 let currentSymbol="", currentTF="15", wsPrice, wsDepth;
 
 function openTrade(symbol){
@@ -319,16 +338,78 @@ document.getElementById("orderAmount").value=1;
 },300);
 }
 
-// P2P
+// ===== P2P PRO =====
 let offers=[];
-function createOffer(){
-offers.push({
+let currentFX=0;
+
+const banks={
+VN:["Vietcombank","Techcombank","ACB"],
+US:["Chase","Bank of America","Wells Fargo"],
+JP:["MUFG","SMBC"],
+KR:["Kookmin","Shinhan"]
+};
+
+function currencyMap(c){
+return {
+VN:"VND",
+US:"USD",
+JP:"JPY",
+KR:"KRW"
+}[c];
+}
+
+async function loadCountry(){
+let c=document.getElementById("country").value;
+
+document.getElementById("bank").innerHTML=
+banks[c].map(b=>`<option>${b}</option>`).join("");
+
+let res=await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+let data=await res.json();
+
+currentFX=data.rates[currencyMap(c)];
+document.getElementById("fxRate").innerText=currentFX;
+
+updateP2PPrice();
+}
+
+function updateP2PPrice(){
+let local=1*currentFX;
+document.getElementById("p2pPrice").value=local.toFixed(2);
+}
+
+function createOffer(type){
+
+let kyc=document.getElementById("kycCheck").checked;
+if(!kyc){
+alert("KYC required!");
+return;
+}
+
+let offer={
+type:type,
+country:document.getElementById("country").value,
+bank:document.getElementById("bank").value,
 amount:document.getElementById("p2pAmount").value,
 price:document.getElementById("p2pPrice").value
-});
-document.getElementById("offers").innerHTML=
-offers.map(o=>`<div class="card">${o.amount} USDT - ${o.price}</div>`).join("");
+};
+
+offers.push(offer);
+renderOffers();
 }
+
+function renderOffers(){
+document.getElementById("offers").innerHTML=
+offers.map(o=>`
+<div class="card">
+<b>${o.type}</b> ${o.amount} USDT<br>
+${o.price} (${o.country})<br>
+ ${o.bank}
+</div>
+`).join("");
+}
+
+loadCountry();
 
 // NFT
 let myNFTs=[];
@@ -343,4 +424,4 @@ myNFTs.map(n=>`<img src="${n}" width="100%">`).join("");
 </script>
 
 </body>
-</html> 
+</html>
