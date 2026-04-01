@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>VIE Wallet App</title>
+<title>VIE Wallet</title>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
@@ -11,11 +11,14 @@
 body{margin:0;background:#050816;color:white;font-family:Arial}
 .container{max-width:420px;margin:auto;padding:10px}
 .card{background:#0b1220;margin:10px;padding:12px;border-radius:12px}
-button{padding:10px;background:#111;color:white;border:none;border-radius:10px;margin-top:5px;width:100%}
+button{padding:10px;border:none;border-radius:10px;width:100%}
 input,select{width:100%;padding:10px;background:#111;color:white;border:none;border-radius:8px;margin-top:5px}
 .tabs{display:flex;justify-content:space-around}
 .tab{cursor:pointer;padding:10px}
-img{border-radius:10px}
+.market-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.market-item{background:#0b1220;padding:10px;border-radius:12px}
+.buy{background:#064e3b;color:#22c55e}
+.sell{background:#7f1d1d;color:#ef4444}
 </style>
 
 </head>
@@ -24,9 +27,8 @@ img{border-radius:10px}
 
 <div class="container">
 
-<h2>VIE Wallet Super App</h2>
+<h2>VIE Wallet</h2>
 
-<!-- NETWORK -->
 <select onchange="switchChain(this.value)">
   <option value="0x1">Ethereum</option>
   <option value="0x38">BSC</option>
@@ -36,48 +38,54 @@ img{border-radius:10px}
 <div class="tabs">
   <div class="tab" onclick="showTab('wallet')">Wallet</div>
   <div class="tab" onclick="showTab('market')">Market</div>
-  <div class="tab" onclick="showTab('swap')">Trade</div>
-  <div class="tab" onclick="showTab('fiat')">Fiat</div>
   <div class="tab" onclick="showTab('p2p')">P2P</div>
   <div class="tab" onclick="showTab('nft')">NFT</div>
 </div>
 
 <!-- WALLET -->
 <div id="wallet" class="card">
-  <button onclick="connectWallet()">Connect Wallet</button>
-  <p id="address"></p>
-  <p id="balance"></p>
+<button onclick="connectWallet()">Connect Wallet</button>
+<p id="address"></p>
+<p id="balance"></p>
 </div>
 
 <!-- MARKET -->
-<div id="market" class="card" style="display:none">
-  <input id="search" placeholder="Search token..." onkeyup="searchToken()">
-  <div id="results"></div>
-  <div id="chart" style="height:300px"></div>
+<div id="market" style="display:none">
+
+<input placeholder="Search..." onkeyup="searchToken()">
+
+<div id="marketList" class="market-grid"></div>
+
 </div>
 
-<!-- SWAP -->
-<div id="swap" class="card" style="display:none">
-  <input id="amount" placeholder="ETH amount">
-  <button onclick="swapETHtoUSDT()">Swap</button>
+<!-- TRADE -->
+<div id="trade" style="display:none">
+
+<div class="card">
+<h3 id="pair"></h3>
+<h1 id="price"></h1>
+<span id="change"></span>
+
+<div id="tv_chart" style="height:400px"></div>
+
+<div style="display:flex;gap:10px;margin-top:10px">
+<button class="buy">MUA</button>
+<button class="sell">BÁN</button>
 </div>
 
-<!-- FIAT -->
-<div id="fiat" class="card" style="display:none">
-  <input id="fiatAmount" placeholder="Amount">
-  <button onclick="buyFiat()">Buy Crypto</button>
+</div>
+
 </div>
 
 <!-- P2P -->
 <div id="p2p" class="card" style="display:none">
 
-<h3>P2P Marketplace</h3>
+<h3>P2P Global</h3>
 
 <select id="country" onchange="updateBanks()">
-  <option value="VN">Vietnam</option>
-  <option value="US">USA</option>
-  <option value="JP">Japan</option>
-  <option value="SG">Singapore</option>
+<option value="VN">Vietnam</option>
+<option value="US">USA</option>
+<option value="JP">Japan</option>
 </select>
 
 <select id="bank"></select>
@@ -87,7 +95,6 @@ img{border-radius:10px}
 
 <button onclick="createOffer()">Create Offer</button>
 
-<h4>Offers</h4>
 <div id="offers"></div>
 
 </div>
@@ -95,16 +102,11 @@ img{border-radius:10px}
 <!-- NFT -->
 <div id="nft" class="card" style="display:none">
 
-<h3>NFT Marketplace</h3>
-
 <input type="file" id="nftFile">
 <input id="nftName" placeholder="NFT name">
 <button onclick="mintNFT()">Mint</button>
 
-<h4>Your NFTs</h4>
 <div id="myNFTs"></div>
-
-<h4>Marketplace</h4>
 <div id="marketNFTs"></div>
 
 </div>
@@ -113,24 +115,9 @@ img{border-radius:10px}
 
 <script>
 
-// ===== CONFIG =====
-const CHAINS = {
-  ETH:"0x1",
-  BSC:"0x38",
-  POLYGON:"0x89"
-};
-
-const COUNTRIES = {
-  VN:{currency:"VND",banks:["Vietcombank","Momo"]},
-  US:{currency:"USD",banks:["Chase","PayPal"]},
-  JP:{currency:"JPY",banks:["Mizuho"]},
-  SG:{currency:"SGD",banks:["DBS"]}
-};
-
-// ===== STATE =====
+// ===== WALLET =====
 let provider, signer, userAddress;
 
-// ===== WALLET =====
 async function connectWallet(){
   provider = new ethers.providers.Web3Provider(window.ethereum);
   await provider.send("eth_requestAccounts",[]);
@@ -141,7 +128,7 @@ async function connectWallet(){
 
   let bal = await provider.getBalance(userAddress);
   document.getElementById("balance").innerText=
-    parseFloat(ethers.utils.formatEther(bal)).toFixed(4)+" ETH";
+    ethers.utils.formatEther(bal)+" ETH";
 }
 
 // ===== CHAIN =====
@@ -152,70 +139,71 @@ async function switchChain(chainId){
   });
 }
 
-// ===== CHART =====
-async function searchToken(){
-  let q = document.getElementById("search").value;
-  if(q.length<2) return;
+// ===== MARKET =====
+let marketData = [
+{symbol:"BTCUSDT",price:69133,change:2.4},
+{symbol:"ETHUSDT",price:2152,change:4.3},
+{symbol:"BNBUSDT",price:619,change:1.2}
+];
 
-  let res = await fetch(`https://api.coingecko.com/api/v3/search?query=${q}`);
-  let data = await res.json();
-
+function renderMarket(){
   let html="";
-  data.coins.slice(0,5).forEach(c=>{
-    html+=`<div class="card" onclick="loadChart('${c.symbol.toUpperCase()}USDT')">
-      ${c.name}
+  marketData.forEach(c=>{
+    html+=`
+    <div class="market-item" onclick="openTrade('${c.symbol}',${c.price},${c.change})">
+      ${c.symbol}<br>
+      ${c.price}<br>
+      ${c.change}%
+      <div style="display:flex">
+        <button class="buy">Mua</button>
+        <button class="sell">Bán</button>
+      </div>
     </div>`;
   });
-
-  document.getElementById("results").innerHTML=html;
+  document.getElementById("marketList").innerHTML=html;
 }
+renderMarket();
 
-function loadChart(symbol){
-  document.getElementById("chart").innerHTML="";
+// ===== TRADE =====
+function openTrade(symbol, price, change){
+
+  showOnly("trade");
+
+  document.getElementById("pair").innerText=symbol;
+  document.getElementById("price").innerText=price;
+  document.getElementById("change").innerText=change+"%";
+
+  document.getElementById("tv_chart").innerHTML="";
+
   new TradingView.widget({
-    container_id:"chart",
+    container_id:"tv_chart",
     symbol:"BINANCE:"+symbol,
     interval:"15",
     theme:"dark"
   });
 }
 
-// ===== SWAP (basic demo) =====
-async function swapETHtoUSDT(){
-  alert("Connect DEX router here (Uniswap / Pancake)");
-}
-
-// ===== FIAT =====
-function buyFiat(){
-  let amount=document.getElementById("fiatAmount").value;
-
-  let url=`https://global.transak.com?apiKey=YOUR_KEY
-  &cryptoCurrencyCode=USDT
-  &fiatAmount=${amount}
-  &walletAddress=${userAddress}`;
-
-  window.open(url,"_blank");
-}
-
 // ===== P2P =====
-let offers=[];
+const COUNTRIES={
+VN:{currency:"VND",banks:["Vietcombank"]},
+US:{currency:"USD",banks:["Chase"]}
+};
 
 function updateBanks(){
   let c=document.getElementById("country").value;
-  let banks=COUNTRIES[c].banks;
-
   let html="";
-  banks.forEach(b=>html+=`<option>${b}</option>`);
+  COUNTRIES[c].banks.forEach(b=>html+=`<option>${b}</option>`);
   document.getElementById("bank").innerHTML=html;
 }
+updateBanks();
+
+let offers=[];
 
 function createOffer(){
   let c=document.getElementById("country").value;
 
   offers.push({
     id:Date.now(),
-    seller:userAddress,
-    country:c,
     bank:document.getElementById("bank").value,
     amount:document.getElementById("p2pAmount").value,
     price:document.getElementById("p2pPrice").value,
@@ -230,95 +218,50 @@ function renderOffers(){
   offers.forEach(o=>{
     html+=`
     <div class="card">
-      <b>${o.price} ${o.currency}</b><br>
-      ${o.amount} USDT<br>
-      ${o.bank}<br>
+      ${o.amount} USDT - ${o.price} ${o.currency}
       <button onclick="buyP2P(${o.id})">Buy</button>
     </div>`;
   });
-
   document.getElementById("offers").innerHTML=html;
 }
 
 function buyP2P(id){
-  let o=offers.find(x=>x.id==id);
-
-  alert(`Send ${o.amount*o.price} ${o.currency} to ${o.bank}`);
+  alert("Transfer bank then confirm");
 }
 
 // ===== NFT =====
-let myNFTs=[];
-let marketNFTs=[];
+let myNFTs=[],marketNFTs=[];
 
 function mintNFT(){
   let file=document.getElementById("nftFile").files[0];
-  let name=document.getElementById("nftName").value;
-
   let url=URL.createObjectURL(file);
 
-  let nft={id:Date.now(),name,image:url,owner:userAddress};
-
+  let nft={id:Date.now(),image:url};
   myNFTs.push(nft);
-  renderMyNFTs();
+  renderNFT();
 }
 
-function renderMyNFTs(){
+function renderNFT(){
   let html="";
   myNFTs.forEach(n=>{
-    html+=`
-    <div class="card">
+    html+=`<div class="card">
       <img src="${n.image}" width="100%">
-      ${n.name}
-      <input id="price-${n.id}" placeholder="Price ETH">
-      <button onclick="listNFT(${n.id})">Sell</button>
     </div>`;
   });
-
   document.getElementById("myNFTs").innerHTML=html;
 }
 
-function listNFT(id){
-  let nft=myNFTs.find(n=>n.id==id);
-  nft.price=document.getElementById("price-"+id).value;
-  marketNFTs.push(nft);
-  renderMarketNFTs();
-}
-
-function renderMarketNFTs(){
-  let html="";
-  marketNFTs.forEach(n=>{
-    html+=`
-    <div class="card">
-      <img src="${n.image}" width="100%">
-      ${n.name} - ${n.price} ETH
-      <button onclick="buyNFT(${n.id})">Buy</button>
-    </div>`;
-  });
-
-  document.getElementById("marketNFTs").innerHTML=html;
-}
-
-async function buyNFT(id){
-  let nft=marketNFTs.find(n=>n.id==id);
-
-  await signer.sendTransaction({
-    to:nft.owner,
-    value:ethers.utils.parseEther(nft.price)
-  });
-
-  alert("Bought NFT");
-}
-
-// ===== TAB =====
-function showTab(tab){
-  ["wallet","market","swap","fiat","p2p","nft"].forEach(t=>{
+// ===== NAV =====
+function showOnly(id){
+  ["wallet","market","trade","p2p","nft"].forEach(t=>{
     document.getElementById(t).style.display="none";
   });
-  document.getElementById(tab).style.display="block";
+  document.getElementById(id).style.display="block";
 }
 
-// INIT
-updateBanks();
+function showTab(tab){
+  showOnly(tab);
+}
 
 </script>
 
